@@ -4,7 +4,11 @@ import boto3
 
 def lambda_handler(event, context):
     try:
-        mypage = page_router(event['httpMethod'], event['queryStringParameters'], event['body'])
+        mypage = page_router(
+            event.get('httpMethod'),
+            event.get('queryStringParameters'),
+            event.get('body')
+        )
         return mypage
     except Exception as e:
         return {
