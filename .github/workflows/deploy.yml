@@ -75,6 +75,12 @@ jobs:
         run: |
           curl -f "https://wfeac5lwb4.execute-api.us-east-1.amazonaws.com/dev"
 
+      # TEMPORARY: simulate a deployment failure
+      - name: Simulate deployment failure
+        run: |
+          echo "Simulating failure for rollback testing"
+          exit 1
+
       # Roll back if a later step fails
       - name: Rollback on failure
         if: failure()
