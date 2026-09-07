@@ -23,17 +23,61 @@ jobs:
           role-to-assume: arn:aws:iam::701179923193:role/GitHubLambdaDeploymentPolicy
           aws-region: us-east-1
 
+      # Remember the currently working version
+      - name: Save current PROD version
+        run: |
+          OLD_VERSION=$(aws lambda get-alias \
+            --function-name serverless-application \
+            --name PROD \
+            --query 'FunctionVersion' \
+            --output text)
+
+          echo "OLD_VERSION=$OLD_VERSION" >> $GITHUB_ENV
+
+      # Package the application
       - name: Package Lambda application
         run: |
           zip deployment.zip lambda_function.py contactus.html success.html
 
+      # Upload new code to Lambda
       - name: Deploy Lambda function
         run: |
           aws lambda update-function-code \
             --function-name serverless-application \
             --zip-file fileb://deployment.zip
 
-      - name: Verify Lambda deployment
+      # Create a permanent version of the new code
+      - name: Publish new Lambda version
         run: |
-          aws lambda get-function \
-            --function-name serverless-application
+          VERSION=$(aws lambda publish-version \
+            --function-name serverless-application \
+            --query 'Version' \
+            --output text)
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # Make PROD use the new version
+      - name: Move PROD to new version
+        run: |
+          aws lambda update-alias \
+            --function-name serverless-application \
+            --name PROD \
+            --function-version $VERSION
+
+      # Test the application
+      - name: Test application
+        run: |
+          curl -f "https://wfeac5lwb4.execute-api.us-east-1.amazonaws.com/dev"
+
+      # If anything after deployment fails, return PROD to old version
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment test failed. Rolling back to version $OLD_VERSION"
+
+          aws lambda update-alias \
+            --function-name serverless-application \
+            --name PROD \
+            --function-version $OLD_VERSION
+
+          echo "Rollback completed. PROD is now using version $OLD_VERSION"
